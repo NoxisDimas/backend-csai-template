@@ -787,7 +787,9 @@ hiredis==3.4.0 \
 httpcore==1.0.9 \
     --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55 \
     --hash=sha256:6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8
-    # via httpx
+    # via
+    #   httpx
+    #   openrouter
 httptools==0.8.0 \
     --hash=sha256:0770728beb05094c809b98e814edff5fef69d26ad7d21185f2f6d5884a0ba683 \
     --hash=sha256:159e9ab5f701ccd42e555a12f1ad8ff69702910fc1c996cf2bb66e5fcb7a231b \
@@ -826,6 +828,7 @@ httpx==0.28.1 \
     #   litellm
     #   ollama
     #   openai
+    #   openrouter
     #   template-customer-service-ai
 huggingface-hub==1.19.0 \
     --hash=sha256:1dc72e1f6b4d6df6b30eb72e57d00514ef453d660f04af2b87f0e67267f31ee0 \
@@ -915,6 +918,10 @@ jsonpatch==1.33 \
     --hash=sha256:0ae28c0cd062bbd8b8ecc26d7d164fbbea9652a1a3693f3b956c1eae5145dade \
     --hash=sha256:9fcd4009c41e6d12348b4a0ff2563ba56a2923a7dfee731d004e212e1ee5030c
     # via langchain-core
+jsonpath-python==1.1.6 \
+    --hash=sha256:a1c50afd8d3fbbaf47a4873bc890dcb3c15da96f5c020327977d844d8731a2d4 \
+    --hash=sha256:dded9932b4ec41fb8726e09c83afa4e6be618f938c2db287cc2a81723c639671
+    # via openrouter
 jsonpointer==3.1.1 \
     --hash=sha256:0b801c7db33a904024f6004d526dcc53bbb8a4a0f4e32bfd10beadf60adf1900 \
     --hash=sha256:8ff8b95779d071ba472cf5bc913028df06031797532f08a7d5b602d8b2a488ca
@@ -942,6 +949,7 @@ langchain-core==1.4.1 \
     #   langchain-groq
     #   langchain-ollama
     #   langchain-openai
+    #   langchain-openrouter
     #   langchain-text-splitters
     #   langgraph
     #   langgraph-checkpoint
@@ -963,6 +971,10 @@ langchain-ollama==1.1.0 \
 langchain-openai==1.2.2 \
     --hash=sha256:7da39a3c70cbafa93853456199e39a264dc70651be79b12ac49b4f6a448bce2d \
     --hash=sha256:8698ffcee9a086e91ab6d207f0026181a03effcbf86bf9aee1808ee35af69dcc
+    # via template-customer-service-ai
+langchain-openrouter==0.2.3 \
+    --hash=sha256:51da9fef8cc065662ab8493c86207039705e721f5086ee603bcb8a456e64dbcb \
+    --hash=sha256:8fafa4dd2682d6e96135b0affde134ae992dd69b0315dd08ed1707d4cf83f896
     # via template-customer-service-ai
 langchain-protocol==0.0.16 \
     --hash=sha256:3658c142c5d0fb3a023a4be442ce4c15c6d626aab6135eb79a76dc64ad19c3c3 \
@@ -1259,6 +1271,10 @@ openpyxl==3.1.5 \
     --hash=sha256:5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2 \
     --hash=sha256:cf0e3cf56142039133628b5acffe8ef0c12bc902d2aadd3e0fe5878dc08d1050
     # via template-customer-service-ai
+openrouter==0.10.0 \
+    --hash=sha256:04567dfc39f11f8e4ff693c966f338610bd3032ee7abceb4b71c99409b8a92e4 \
+    --hash=sha256:0e318c1ea61fe1c78633dcef97440f43fca7322989d52e5bcea780fabd9150d6
+    # via langchain-openrouter
 orjson==3.11.9 \
     --hash=sha256:051b102c93b4f634e89f3866b07b9a9a98915ada541f4ec30f177067b2694979 \
     --hash=sha256:08f4d8ebb44925c794e535b2bebc507cebf32209df81de22ae285fb0d8d66de0 \
@@ -1654,6 +1670,7 @@ pydantic==2.13.4 \
     #   litellm
     #   ollama
     #   openai
+    #   openrouter
     #   pydantic-settings
     #   template-customer-service-ai
 pydantic-core==2.46.4 \
