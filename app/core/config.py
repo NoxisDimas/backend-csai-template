@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     OLLAMA_CHAT_MODEL: Optional[str] = Field(default=None, description="Ollama Chat Model")
     OLLAMA_EMBEDDING_MODEL: str = Field(default="nomic-embed-text", description="Ollama Embedding Model")
 
+    OPENROUTER_API_KEY: str = Field(default="", description="OpenRouter API Key")
+    OPENROUTER_CHAT_MODEL: str = Field(default="meta-llama/llama-3.1-8b-instruct", description="OpenRouter Chat Model")
+
     # --- Shopify Integration ---
     # Shopify configurations are now stored in the database
 

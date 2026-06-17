@@ -30,8 +30,10 @@ class AnalyticsController:
             weekly_tokens = await self._get_token_sum(week_ago)
             monthly_tokens = await self._get_token_sum(month_ago)
             
-            # 2. Cost Estimation (USD only) - assume $0.0005 per 1k tokens based on monthly usage
-            cost_usd = (monthly_tokens / 1000.0) * 0.0005
+            # 2. Cost (USD only) - fetch actual sum from Conversation table
+            query_cost = select(func.sum(Conversation.total_cost)).where(func.date(Conversation.created_at) >= month_ago)
+            cost_result = await self.db.scalar(query_cost)
+            cost_usd = float(cost_result or 0.0)
             
             # 3. Chat History Summary (Recent 10)
             recent_chats = await self._get_recent_chats(10)
@@ -68,32 +70,27 @@ class AnalyticsController:
             }
 
     async def _get_token_sum(self, start_date: date) -> int:
-        """Sum tokens used since a given date."""
-        from app.models.analytics import LLMTokenLog
-        query = select(func.sum(LLMTokenLog.total_tokens)).where(func.date(LLMTokenLog.created_at) >= start_date)
+        """Sum tokens used since a given date directly from conversations."""
+        query = select(func.sum(Conversation.total_token)).where(func.date(Conversation.created_at) >= start_date)
         result = await self.db.scalar(query)
         return int(result or 0)
         
     async def _get_recent_chats(self, limit: int) -> List[Dict[str, Any]]:
-        """Fetch recent conversations along with their total token usage."""
-        from app.models.analytics import LLMTokenLog
+        """Fetch recent conversations along with their total token usage and cost."""
         query = select(Conversation).order_by(Conversation.created_at.desc()).limit(limit)
         result = await self.db.execute(query)
         convs = result.scalars().all()
         
         chat_summary = []
         for c in convs:
-            # Match by conversation_id mapped to user_id in LLMTokenLog
-            token_sum_query = select(func.sum(LLMTokenLog.total_tokens)).where(LLMTokenLog.user_id == str(c.id))
-            tokens = await self.db.scalar(token_sum_query)
-            
             chat_summary.append({
                 "conversation_id": str(c.id),
                 "status": c.status,
                 "customer_id": c.anonymous_customer_id,
                 "intent": c.intent,
                 "created_at": c.created_at.isoformat(),
-                "total_tokens": int(tokens or 0)
+                "total_tokens": c.total_token,
+                "total_cost": c.total_cost
             })
         return chat_summary
 

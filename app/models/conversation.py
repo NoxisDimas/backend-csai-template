@@ -10,7 +10,7 @@ Tables:
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text, func
+from sqlalchemy import ForeignKey, Integer, String, Text, Float, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -57,6 +57,12 @@ class Conversation(Base):
     last_activity_at: Mapped[datetime | None] = mapped_column(
         server_default=func.now(), nullable=True
     )
+    total_token: Mapped[int] = mapped_column(
+        Integer, server_default="0", nullable=False
+    )
+    total_cost: Mapped[float] = mapped_column(
+        Float, server_default="0.0", nullable=False
+    )
 
     # Relationships
     messages: Mapped[list["Message"]] = relationship(
@@ -97,6 +103,9 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_usage: Mapped[int] = mapped_column(
         Integer, server_default="0", nullable=False
+    )
+    cost: Mapped[float] = mapped_column(
+        Float, server_default="0.0", nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False

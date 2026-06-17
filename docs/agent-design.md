@@ -28,25 +28,19 @@ Shopify Node: Connects with the Shopify GraphQL API to fetch product catalog dat
 
 Escalate Node: Triggered when the Router detects the customer using abusive language, repeatedly failing to be understood, or explicitly requesting a human agent. This node breaks the AI flow and triggers the Telegram integration.
 
-2. Multi-LLM Fallback Logic
+3. Multi-LLM Fallback Logic
 
 The Customer Service system must be available 24/7 and fault-tolerant to network failures or rate-limiting from AI providers. For this, we designed a tiered fallback system:
 
-Primary: OpenAI (GPT-4o / GPT-4o-mini)
-High speed, strong reasoning, and highly reliable in tool calling.
-
-Secondary: Google Gemini (Gemini 1.5 Pro)
-If OpenAI experiences a timeout or quota exhaustion, the system will attempt to call the Gemini API.
-
-Tertiary: Groq (Llama 3)
-Super fast option if the two previous providers fail.
+Primary: OpenRouter
+Provides access to multiple state-of-the-art models (e.g., Llama 3) with high speed, strong reasoning, and reliable token/cost tracking.
 
 Local Fallback: Ollama
-If all internet connections are lost or all API services are down, the system will switch to using a local Ollama server to ensure basic operations keep running.
+If all internet connections are lost or the primary API service is down, the system will switch to using a local Ollama server to ensure basic operations keep running.
 
 This flow is configured via the .env environment variable:
 
-LLM_PRIORITY_LIST=["openai", "google_genai", "groq", "ollama"]
+LLM_PRIORITY_LIST=["openrouter", "ollama"]
 
 3. Persistent Memory & Checkpointing
 

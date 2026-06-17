@@ -43,3 +43,4 @@ Thumbs.db
 #Other
 .wipe_db.py
 app/test_bench.py
+docs/frontend/

@@ -58,7 +58,8 @@ async def chat_websocket(
                 new_message = Message(
                     conversation_id=conv_uuid,
                     sender_type="customer",
-                    content=data
+                    content=data,
+                    cost=0.0
                 )
                 db.add(new_message)
                 await db.commit()

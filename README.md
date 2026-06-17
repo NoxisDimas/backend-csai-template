@@ -6,7 +6,7 @@ What is this project?
 This is an AI-powered Customer Service backend designed specifically for Shopify stores. This project utilizes the FastAPI framework, LangGraph, and a multi-LLM fallback architecture to provide real-time and interactive customer support via WebSockets. The system also integrates directly with Shopify to search for products, check stock, and track orders.
 Key Features
 
-    🧠 Multi-LLM Agent Architecture (LangGraph): A state-machine based AI agent supporting OpenAI, Google Gemini, Groq, and Ollama (Local).
+    🧠 Multi-LLM Agent Architecture (LangGraph): A state-machine based AI agent supporting OpenRouter (Primary) and Ollama (Local Fallback).
 
     🛍️ Deep Shopify Integration: Product search, stock checking, and order tracking directly via the Shopify GraphQL API.
 
@@ -27,7 +27,7 @@ git clone <repository_url>
 cd <repository_folder>
 cp .env.example .env
 
-Make sure you configure the .env file with your PostgreSQL credentials, Redis, LLM API Keys (OpenAI/Google/Groq), and Shopify keys. 2. Run via Docker (Recommended)
+Make sure you configure the .env file with your PostgreSQL credentials, Redis, LLM API Keys (OpenRouter/Ollama), and Shopify keys. 2. Run via Docker (Recommended)
 
 The large-scale architecture (including Load Balancer, Redis, Database, and Workers) is easiest to run with Docker:
 Bash

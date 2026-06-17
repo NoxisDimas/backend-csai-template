@@ -48,6 +48,7 @@ dependencies = [
     "litellm>=1.88.1",
     "pybreaker>=1.4.1",
     "prometheus-fastapi-instrumentator>=8.0.0",
+    "langchain-openrouter>=0.2.3",
 ]
 
 [project.optional-dependencies]

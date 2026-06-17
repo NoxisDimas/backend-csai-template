@@ -171,7 +171,7 @@ async def run_agentic_loop(
 
     try:
         llm = await llm_manager.get_static_llm(
-            provider="groq",
+            provider="openrouter",
             user_id=conversation_id,
             channel="shopify_chat",
             temperature=0.0,
@@ -215,8 +215,9 @@ async def run_agentic_loop(
             last_message = result["messages"][-1]
             raw_content = last_message.content
 
-            # Extract token usage
+            # Extract token usage and cost
             total_tokens = 0
+            cost = 0.0
             logger.info(f"DEBUG_TOKENS: type(last_message)={type(last_message)}")
             logger.info(f"DEBUG_TOKENS: usage_metadata={getattr(last_message, 'usage_metadata', None)}")
             logger.info(f"DEBUG_TOKENS: response_metadata={getattr(last_message, 'response_metadata', None)}")
@@ -226,7 +227,15 @@ async def run_agentic_loop(
             elif hasattr(last_message, "response_metadata") and "token_usage" in last_message.response_metadata:
                 total_tokens = last_message.response_metadata["token_usage"].get("total_tokens", 0)
                 
-            logger.info(f"DEBUG_TOKENS: total_tokens extracted = {total_tokens}")
+            if hasattr(last_message, "response_metadata"):
+                # Try to extract cost from typical OpenRouter locations
+                resp_meta = last_message.response_metadata
+                if "usage" in resp_meta and isinstance(resp_meta["usage"], dict):
+                    cost = float(resp_meta["usage"].get("cost", 0.0))
+                elif "token_usage" in resp_meta and "cost" in resp_meta["token_usage"]:
+                    cost = float(resp_meta["token_usage"].get("cost", 0.0))
+                
+            logger.info(f"DEBUG_TOKENS: total_tokens = {total_tokens}, cost = {cost}")
 
             if isinstance(raw_content, dict):
                 final_response = raw_content
@@ -277,17 +286,28 @@ async def run_agentic_loop(
                 "products": []
             }
             total_tokens = 0
+            cost = 0.0
 
         # Save AI message to DB
         try:
             import json
+            from app.models.conversation import Conversation
+            
             new_message = Message(
                 conversation_id=uuid.UUID(conversation_id),
                 sender_type="ai",
                 content=json.dumps(final_response) if isinstance(final_response, dict) else str(final_response),
                 token_usage=total_tokens,
+                cost=cost,
             )
             db.add(new_message)
+            
+            # Update Conversation totals
+            conv = await db.get(Conversation, uuid.UUID(conversation_id))
+            if conv:
+                conv.total_token += total_tokens
+                conv.total_cost += cost
+                
             await db.commit()
         except Exception as e:
             logger.exception("db_save_ai_message_failed", error=str(e))

@@ -61,7 +61,10 @@ Establishes a persistent WebSocket connection to stream real-time message update
 Fetch all conversation threads, ordered by the latest activity.
 
 ### `GET /conversations/{conversation_id}/messages`
-Fetch the complete chronological message history for a specific conversation thread.
+Fetch the complete chronological message history for a specific conversation thread. Returns full message schemas including `cost` and `token_usage`.
+
+### `GET /conversations/all-history`
+**(NEW)** Fetch all message history grouped by conversation ID. Includes `cost` and `token_usage` metrics per message to allow frontend mapping.
 
 ### `POST /conversations/{conversation_id}/takeover`
 **Kill-Switch ON**: Updates the target conversation status to `human_handling`. This immediately prevents the automated AI agent from processing future inputs on this thread, allowing staff to take over.
@@ -114,7 +117,7 @@ Manually trigger a full product synchronization from Shopify. This fetches all p
 Endpoints dedicated to retrieving aggregated operational statistics.
 
 ### `GET /analytics/metrics`
-Fetch comprehensive dashboard metrics including total token consumption, estimated running costs, CSAT average, total conversations, and peak hours distribution density.
+Fetch comprehensive dashboard metrics including total token consumption, **actual running costs** (directly queried from the database `total_cost` aggregations), CSAT average, total conversations, and peak hours distribution density.
 
 ### `GET /analytics/errors`
 Fetch recent silent backend errors and warnings to provide system observability on the admin dashboard.

@@ -56,7 +56,9 @@ status VARCHAR(50) DEFAULT 'active_ai' CHECK (status IN ('active_ai', 'waiting_h
 intent VARCHAR(100),
 assigned_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-last_activity_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+last_activity_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+total_token INT DEFAULT 0,
+total_cost NUMERIC(10, 4) DEFAULT 0.0000
 );
 
 -- Chat history (Can be synchronized from LangGraph state or written manually)
@@ -66,6 +68,7 @@ conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
 sender_type VARCHAR(50) NOT NULL CHECK (sender_type IN ('customer', 'ai', 'staff')),
 content TEXT NOT NULL,
 token_usage INT DEFAULT 0, -- Input+output tokens if sender_type = 'ai'
+cost NUMERIC(10, 4) DEFAULT 0.0000, -- Actual cost recorded from OpenRouter
 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -84,7 +87,7 @@ resolved_at TIMESTAMP WITH TIME ZONE
 
 4. Analytics & Metrics Dashboard
 
-Tables to store the aggregation results of backend cron jobs and Customer Satisfaction ratings.
+Tables to store the aggregation results of backend cron jobs and Customer Satisfaction ratings. (Note: token usage and cost are calculated dynamically by aggregating `total_token` and `total_cost` directly from the `conversations` table, ensuring exact precision).
 
 -- CSAT rating per conversation
 CREATE TABLE feedback (

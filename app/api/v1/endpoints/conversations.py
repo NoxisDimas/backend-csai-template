@@ -104,7 +104,8 @@ async def send_staff_message(conversation_id: uuid.UUID, message: StaffMessageCr
     new_message = Message(
         conversation_id=conversation_id,
         sender_type="staff",
-        content=message.content
+        content=message.content,
+        cost=0.0
     )
     db.add(new_message)
     await db.commit()
@@ -166,3 +167,28 @@ async def submit_feedback(conversation_id: uuid.UUID, feedback: FeedbackCreate, 
     await db.commit()
     
     return {"status": "success", "rating": feedback.rating}
+
+@router.get("/all-history")
+async def get_all_history_grouped(db: AsyncSession = Depends(get_db)):
+    """Fetch all chat history and group them by conversation ID."""
+    result = await db.execute(
+        select(Message).order_by(Message.conversation_id, Message.created_at.asc())
+    )
+    messages = result.scalars().all()
+    
+    grouped_data = {}
+    for msg in messages:
+        conv_id = str(msg.conversation_id)
+        if conv_id not in grouped_data:
+            grouped_data[conv_id] = []
+        grouped_data[conv_id].append({
+            "id": str(msg.id),
+            "sender_type": msg.sender_type,
+            "content": msg.content,
+            "token_usage": msg.token_usage,
+            "cost": msg.cost,
+            "created_at": msg.created_at,
+        })
+        
+    return grouped_data
+

@@ -28,25 +28,15 @@ class LLMManager:
         self.priority_list = self.settings.llm_priority_list
         self.embed_priority_list = self.settings.embed_priority_list
         self.__llm_maps: Dict[str, Dict[str, Any]] = {
-            "openai": {
-                "api_key": self.settings.OPENAI_API_KEY,
-                "model": self.settings.OPENAI_CHAT_MODEL,
-                "langchain_name": lambda m: f"openai:{m}"
-            },
-            "google_genai": {
-                "api_key": self.settings.GOOGLEGENAI_API_KEY,
-                "model": self.settings.GOOGLEGENAI_CHAT_MODEL,
-                "langchain_name": lambda m: f"google_genai:{m}"
-            },
-            "groq": {
-                "api_key": self.settings.GROQ_API_KEY,
-                "model": self.settings.GROQ_CHAT_MODEL,
-                "langchain_name": lambda m: f"groq:{m}"
-            },
             "ollama": {
                 "base_url": self.settings.OLLAMA_BASE_URL,
                 "model": self.settings.OLLAMA_CHAT_MODEL,
                 "langchain_name": lambda m: f"ollama:{m}"
+            },
+            "openrouter": {
+                "api_key": self.settings.OPENROUTER_API_KEY,
+                "model": self.settings.OPENROUTER_CHAT_MODEL,
+                "langchain_name": lambda m: m
             }
         }
         
@@ -103,6 +93,19 @@ class LLMManager:
                 base_url=provider_map["base_url"],
                 callbacks=callbacks,
                 timeout=self.settings.LLM_TIMEOUT_SECONDS,
+                max_retries=3,
+                **kwargs
+            )
+        elif provider.lower() == "openrouter":
+            from langchain_openrouter import ChatOpenRouter
+            api_key = provider_map.get("api_key")
+            if not api_key:
+                raise ValueError(f"API key for provider '{provider}' is not set.")
+            return ChatOpenRouter(
+                api_key=api_key,
+                model=model_name,
+                callbacks=callbacks,
+                request_timeout=self.settings.LLM_TIMEOUT_SECONDS,
                 max_retries=3,
                 **kwargs
             )
