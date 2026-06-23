@@ -23,18 +23,18 @@ T = TypeVar("T")
 class ResponseMeta(BaseModel):
     """Metadata attached to successful responses."""
 
-    timestamp: datetime = Field(default_factory=lambda: datetime.now())
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(), description="The server time when the response was generated.")
 
 
 class PaginationMeta(BaseModel):
     """Pagination metadata for paginated list responses."""
 
-    total_items: int
-    total_pages: int
-    current_page: int
-    per_page: int
-    has_next: bool
-    has_prev: bool
+    total_items: int = Field(..., description="Total number of items across all pages.")
+    total_pages: int = Field(..., description="Total number of available pages.")
+    current_page: int = Field(..., description="The current page index (1-based).")
+    per_page: int = Field(..., description="Number of items returned per page.")
+    has_next: bool = Field(..., description="Whether there is a subsequent page.")
+    has_prev: bool = Field(..., description="Whether there is a preceding page.")
 
 
 class SuccessResponse(BaseModel, Generic[T]):
@@ -45,8 +45,8 @@ class SuccessResponse(BaseModel, Generic[T]):
         return SuccessResponse(data={"id": "...", "status": "active_ai"})
     """
 
-    data: T
-    meta: ResponseMeta = Field(default_factory=ResponseMeta)
+    data: T = Field(..., description="The core data payload of the response.")
+    meta: ResponseMeta = Field(default_factory=ResponseMeta, description="Response metadata.")
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
@@ -61,9 +61,9 @@ class PaginatedResponse(BaseModel, Generic[T]):
         )
     """
 
-    data: list[T]
-    meta: ResponseMeta = Field(default_factory=ResponseMeta)
-    pagination: PaginationMeta
+    data: list[T] = Field(..., description="List of items for the current page.")
+    meta: ResponseMeta = Field(default_factory=ResponseMeta, description="Response metadata.")
+    pagination: PaginationMeta = Field(..., description="Pagination metadata to assist UI navigation.")
 
 
 # ---------------------------------------------------------------------------
@@ -74,16 +74,16 @@ class PaginatedResponse(BaseModel, Generic[T]):
 class ErrorDetail(BaseModel):
     """Individual field-level error detail."""
 
-    field: str
-    issue: str
+    field: str = Field(..., description="The name of the field that failed validation.")
+    issue: str = Field(..., description="A human-readable description of why the field is invalid.")
 
 
 class ErrorBody(BaseModel):
     """Error information body."""
 
-    code: str
-    message: str
-    details: list[ErrorDetail] = Field(default_factory=list)
+    code: str = Field(..., description="A machine-readable error code (e.g. VALIDATION_FAILED).")
+    message: str = Field(..., description="A user-friendly error message.")
+    details: list[ErrorDetail] = Field(default_factory=list, description="Optional detailed list of validation errors per field.")
 
 
 class ErrorResponse(BaseModel):
@@ -106,7 +106,7 @@ class ErrorResponse(BaseModel):
         )
     """
 
-    error: ErrorBody
+    error: ErrorBody = Field(..., description="The structured error envelope.")
 
 
 # ---------------------------------------------------------------------------

@@ -24,8 +24,8 @@ class TelegramAlertPayload(TypedDict, total=False):
     session_id: str
     agent_name: str
     node_name: str
-    error_type: str
     error_message: str
+    error_type : str
     affected_action: str
     next_action: str
     traceback_str: str
@@ -122,8 +122,8 @@ def fire_telegram_alert(alert_data: TelegramAlertPayload) -> None:
             loop = asyncio.get_running_loop()
             loop.create_task(arq_pool.enqueue_job("send_telegram_alert_task", dict(alert_data)))
             return
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("failed_to_enqueue_telegram_alert", error=str(e))
 
     try:
         loop = asyncio.get_running_loop()
@@ -191,3 +191,4 @@ def log_and_alert_error_sync(
         loop.create_task(log_and_alert_error(e, service, node, action, conversation_id))
     except RuntimeError:
         asyncio.run(log_and_alert_error(e, service, node, action, conversation_id))
+

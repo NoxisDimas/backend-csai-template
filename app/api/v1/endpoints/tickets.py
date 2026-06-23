@@ -22,19 +22,25 @@ class TicketStatusUpdate(BaseModel):
 class TicketNotesUpdate(BaseModel):
     notes: str
 
-@router.get("")
+@router.get(
+    "",
+    summary="List Tickets",
+    description="Fetch a list of human escalation tickets, optionally filtered by status (e.g. 'open', 'resolved')."
+)
 async def list_tickets(status: str = None, db: AsyncSession = Depends(get_db)):
-    """Fetch tickets, optionally filtered by status."""
     stmt = select(Ticket).order_by(Ticket.created_at.desc())
     if status:
         stmt = stmt.where(Ticket.status == status)
         
     result = await db.execute(stmt)
-    return result.scalars().all()
+    return {"data": result.scalars().all()}
 
-@router.put("/{ticket_id}/status")
+@router.put(
+    "/{ticket_id}/status",
+    summary="Update Ticket Status",
+    description="Update the status of a human escalation ticket."
+)
 async def update_ticket_status(ticket_id: uuid.UUID, payload: TicketStatusUpdate, db: AsyncSession = Depends(get_db)):
-    """Update ticket status (e.g. resolved)."""
     ticket = await db.get(Ticket, ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -45,9 +51,12 @@ async def update_ticket_status(ticket_id: uuid.UUID, payload: TicketStatusUpdate
     logger.info("ticket_status_updated", ticket_id=str(ticket_id), status=payload.status)
     return {"id": str(ticket_id), "status": ticket.status}
 
-@router.put("/{ticket_id}/notes")
+@router.put(
+    "/{ticket_id}/notes",
+    summary="Update Ticket Notes",
+    description="Update or append internal notes for a human escalation ticket."
+)
 async def update_ticket_notes(ticket_id: uuid.UUID, payload: TicketNotesUpdate, db: AsyncSession = Depends(get_db)):
-    """Update internal notes for a ticket."""
     ticket = await db.get(Ticket, ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")

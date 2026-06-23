@@ -67,6 +67,8 @@ services:
         condition: service_healthy
     volumes:
       - .:/app  # Dev: live code reload
+    ports:
+      - "8000:8000"
     command: >
       uvicorn app.main:app
       --host 0.0.0.0
@@ -106,6 +108,8 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - api
 

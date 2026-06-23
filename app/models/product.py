@@ -5,7 +5,7 @@ ORM models for Shopify Products and Vector Embeddings.
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, Text, DateTime, func, ForeignKey
+from sqlalchemy import String, Text, DateTime, func, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 
@@ -49,10 +49,19 @@ class ProductEmbedding(Base):
     Vector embeddings for Product chunks.
     """
     __tablename__ = "product_embeddings"
+    __table_args__ = (
+        Index(
+            "ix_product_embedding_vector",
+            "embedding_vector",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding_vector": "vector_cosine_ops"},
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     product_id: Mapped[str] = mapped_column(
-        ForeignKey("products.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
     )
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
     chunk_index: Mapped[int] = mapped_column(nullable=False, default=0)

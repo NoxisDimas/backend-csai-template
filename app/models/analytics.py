@@ -33,6 +33,7 @@ class Feedback(Base):
         UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     rating: Mapped[int] = mapped_column(
         Integer,

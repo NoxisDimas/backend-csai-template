@@ -22,12 +22,40 @@ def is_within_operational_hours(hours_config: Dict[str, Any], current_time: date
             
         day_name = current_time.strftime('%A').lower()
         
+        if isinstance(hours_config, str):
+            import json
+            hours_config = json.loads(hours_config)
+            
+        if not isinstance(hours_config, dict):
+            return True
+            
         if day_name not in hours_config:
             return False
             
         day_config = hours_config[day_name]
-        start_time_str = day_config.get("start")
-        end_time_str = day_config.get("end")
+        
+        start_time_str = None
+        end_time_str = None
+        
+        if isinstance(day_config, str):
+            try:
+                import json
+                parsed = json.loads(day_config)
+                if isinstance(parsed, dict):
+                    day_config = parsed
+            except Exception as e:
+                logger.warning("failed_to_parse_hours_config", error=str(e))
+                
+        if isinstance(day_config, dict):
+            start_time_str = day_config.get("start")
+            end_time_str = day_config.get("end")
+        elif isinstance(day_config, str) and "-" in day_config:
+            parts = day_config.split("-")
+            if len(parts) == 2:
+                start_time_str = parts[0].strip()
+                end_time_str = parts[1].strip()
+        else:
+            return True
         
         if not start_time_str or not end_time_str:
             return False

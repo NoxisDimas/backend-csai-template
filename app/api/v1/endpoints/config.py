@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_admin, get_db
+from app.api.dependencies import get_current_admin, get_current_user, get_db
 from app.core.exceptions import NotFoundError
 from app.core.security import encrypt_data, decrypt_data
 from app.models.config import PersonaSetting, SystemConfig
@@ -50,6 +50,7 @@ def _mask_token(token: str, visible_chars: int = 4) -> str:
 )
 async def get_persona(
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_admin),
 ) -> SuccessResponse[PersonaSettingResponse | None]:
     """Get the current active persona settings."""
     result = await db.execute(
@@ -74,6 +75,7 @@ async def get_persona(
 async def update_persona(
     payload: PersonaSettingUpdate,
     db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
 ) -> SuccessResponse[MessageResponse]:
     """Update or create persona settings (admin-only)."""
     result = await db.execute(
@@ -121,6 +123,7 @@ from app.services.config_manager import SystemConfigManager
 )
 async def get_system_config(
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_admin),
 ) -> SuccessResponse[SystemConfigResponse | None]:
     """Get system configuration (admin-only, tokens masked)."""
     config = await SystemConfigManager.get_config(db)

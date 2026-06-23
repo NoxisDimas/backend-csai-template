@@ -25,7 +25,8 @@ from app.services.shopify_controller import ShopifyController
 from app.tools.shopify_tools import (
     create_order_lookup_tools,
     create_search_product_tools,
-    create_shopify_shop_info_tools
+    create_shopify_shop_info_tools,
+    create_discount_tools
 )
 from app.tools.rag_tools import search_knowledge_base
 from app.tools.escalation_tools import create_escalation_tools
@@ -56,6 +57,7 @@ async def _build_tools(conversation_id: str, sys_config: Any = None) -> list:
         *create_order_lookup_tools(shopify_ctrl),
         *create_search_product_tools(shopify_ctrl),
         *create_shopify_shop_info_tools(shopify_ctrl),
+        *create_discount_tools(shopify_ctrl),
         # RAG & Escalation
         search_knowledge_base,
         *create_escalation_tools(conversation_id),
@@ -149,6 +151,7 @@ async def run_agentic_loop(
 
     [TOOL USAGE STRATEGY]
     - Use `search_product` to find product names, categories, prices, sizes, and stock availability.
+    - Use `check_discounts` to find active promotions, automatic discounts, or discount codes.
     - Use the available tools for product details, orders, and store info.
     - Do NOT call tools for basic greetings or store policy questions if the answer is already in your system knowledge.
 
@@ -171,11 +174,11 @@ async def run_agentic_loop(
 
     try:
         llm = await llm_manager.get_static_llm(
-            provider="openrouter",
+            provider="google_genai",
             user_id=conversation_id,
             channel="shopify_chat",
             temperature=0.0,
-            fallback_providers=["google_genai", "ollama"],
+            fallback_providers=["openrouter", "ollama"],
         )
     except Exception as e:
         logger.error("agentic_loop_failed_llm", error=str(e))
@@ -230,52 +233,91 @@ async def run_agentic_loop(
             if hasattr(last_message, "response_metadata"):
                 # Try to extract cost from typical OpenRouter locations
                 resp_meta = last_message.response_metadata
-                if "usage" in resp_meta and isinstance(resp_meta["usage"], dict):
+                
+                # Sometimes cost is directly in the response metadata root
+                if "cost" in resp_meta:
+                    cost = float(resp_meta["cost"])
+                elif "usage" in resp_meta and isinstance(resp_meta["usage"], dict):
+                    # Check natively inside usage
                     cost = float(resp_meta["usage"].get("cost", 0.0))
                 elif "token_usage" in resp_meta and "cost" in resp_meta["token_usage"]:
                     cost = float(resp_meta["token_usage"].get("cost", 0.0))
+                    
+                # OpenRouter sometimes places it inside extra_info
+                if cost == 0.0 and "extra_info" in resp_meta and isinstance(resp_meta["extra_info"], dict):
+                    cost = float(resp_meta["extra_info"].get("cost", 0.0))
                 
             logger.info(f"DEBUG_TOKENS: total_tokens = {total_tokens}, cost = {cost}")
 
-            if isinstance(raw_content, dict):
-                final_response = raw_content
-                final_response_text = str(raw_content)
-            else:
-                if isinstance(raw_content, list):
-                    final_response_text = "".join(
-                        part.get("text", "")
-                        for part in raw_content
-                        if isinstance(part, dict)
-                    )
-                else:
-                    final_response_text = str(raw_content)
+            # Extract structured response from tool calls if available
+            final_response = None
+            
+            # Traverse messages backwards to find the AIMessage that called AgentResponseFormat
+            for msg in reversed(result["messages"]):
+                if msg.__class__.__name__ == "AIMessage" and hasattr(msg, "tool_calls") and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        if tc.get("name") == "AgentResponseFormat" or tc.get("name") == "structured_response":
+                            final_response = tc.get("args")
+                            break
+                if final_response:
+                    break
 
-                import json
-                try:
-                    clean_text = final_response_text.strip()
-                    if clean_text.startswith("```json"):
-                        clean_text = clean_text[7:]
-                    if clean_text.startswith("```"):
-                        clean_text = clean_text[3:]
-                    if clean_text.endswith("```"):
-                        clean_text = clean_text[:-3]
-                    clean_text = clean_text.strip()
-                    final_response = json.loads(clean_text)
-                    
-                    if "messages" not in final_response:
-                        final_response["messages"] = "Maaf, saya tidak dapat memformat pesan."
-                    if "has_product" not in final_response:
-                        final_response["has_product"] = False
-                    if "products" not in final_response:
-                        final_response["products"] = []
+            if not final_response:
+                if isinstance(raw_content, dict):
+                    final_response = raw_content
+                    final_response_text = str(raw_content)
+                else:
+                    if isinstance(raw_content, list):
+                        final_response_text = "".join(
+                            part.get("text", "")
+                            for part in raw_content
+                            if isinstance(part, dict)
+                        )
+                    else:
+                        final_response_text = str(raw_content)
+    
+                    import json
+                    import re
+                    import ast
+                    try:
+                        clean_text = final_response_text.strip()
+                        if clean_text.startswith("```json"):
+                            clean_text = clean_text[7:]
+                        if clean_text.startswith("```"):
+                            clean_text = clean_text[3:]
+                        if clean_text.endswith("```"):
+                            clean_text = clean_text[:-3]
+                        clean_text = clean_text.strip()
                         
-                except Exception as e:
-                    logger.error("failed_to_parse_agent_json", error=str(e), text=final_response_text)
-                    final_response = {
-                        "messages": final_response_text,
-                        "has_product": False,
-                        "products": []
-                    }
+                        # Try to extract everything from first { to last }
+                        match = re.search(r'\{.*\}', clean_text, re.DOTALL)
+                        if match:
+                            clean_text = match.group(0)
+                            
+                        try:
+                            final_response = json.loads(clean_text)
+                        except Exception:
+                            # Fallback for single-quoted Python dicts
+                            final_response = ast.literal_eval(clean_text)
+                        
+                        if not isinstance(final_response, dict):
+                            raise ValueError("Parsed output is not a dictionary")
+                            
+                    except Exception as e:
+                        logger.error("failed_to_parse_agent_json", error=str(e), text=final_response_text)
+                        final_response = {
+                            "messages": final_response_text,
+                            "has_product": False,
+                            "products": []
+                        }
+
+            # Final safety check on the dict format
+            if "messages" not in final_response:
+                final_response["messages"] = "Maaf, saya tidak dapat memformat pesan."
+            if "has_product" not in final_response:
+                final_response["has_product"] = False
+            if "products" not in final_response:
+                final_response["products"] = []
 
         except Exception as e:
             logger.exception("agentic_loop_execution_error")
@@ -296,7 +338,7 @@ async def run_agentic_loop(
             new_message = Message(
                 conversation_id=uuid.UUID(conversation_id),
                 sender_type="ai",
-                content=json.dumps(final_response) if isinstance(final_response, dict) else str(final_response),
+                content=final_response.get("messages", str(final_response)),
                 token_usage=total_tokens,
                 cost=cost,
             )
@@ -314,8 +356,9 @@ async def run_agentic_loop(
 
         # Send response to customer
         payload = {
-            "type": "new_message",
+            "type": "message",
             "sender": "ai",
+            "text": final_response.get("messages", ""),
             "messages": final_response.get("messages", ""),
             "has_product": final_response.get("has_product", False),
             "products": final_response.get("products", [])

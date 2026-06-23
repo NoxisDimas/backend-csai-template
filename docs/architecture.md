@@ -124,8 +124,20 @@ backend/
 │
 ├── .env.example # Sample environment configuration template
 ├── alembic.ini # Alembic migrations system configuration
-├── requirements.txt # Python system dependencies
+├── pyproject.toml # Project configuration and dependencies (managed by uv)
+├── uv.lock # Locked dependencies for reproducible builds
 └── Dockerfile # Production container assembly configuration
+
+5. CI/CD Pipeline & Deployment Strategy
+
+The system is equipped with a modern CI/CD pipeline using **GitHub Actions**, designed to safely ship code from the repository to the production server:
+
+1. **Continuous Integration (CI):** 
+   Triggered on every Pull Request or push to the `main` branch. GitHub Actions automatically sets up Python 3.13 and the `uv` package manager, and runs the entire `pytest` suite. If any test fails, the deployment is aborted to protect production stability.
+2. **Continuous Deployment (CD):** 
+   If tests pass on the `main` branch, the workflow automatically builds a new Docker Image. This image is pushed securely to the **GitHub Container Registry (GHCR)** tagged as `latest`.
+3. **Auto-Deployment via Watchtower:** 
+   The production server runs a `containrrr/watchtower` container configured with a Personal Access Token (PAT) to access the private GHCR repository. Watchtower polls the registry periodically and automatically pulls the new image and restarts the application seamlessly with zero manual SSH intervention.
 
 4. Data Flow Analysis for the Handoff Feature
 
@@ -151,7 +163,7 @@ If the LLM determines that the issue requires human escalation (guided by rules 
 
 This tool executes a backend mutation updating the database conversation status to waiting_human and inserts a corresponding entry into the tickets table.
 
-4.3 Manual UI Intervention (In api/v1/endpoints/inbox.py)
+4.3 Manual UI Intervention (In api/v1/endpoints/conversations.py)
 
 When an administrator clicks the Takeover button on the Live Inbox UI, the endpoint triggers a database state transaction updating conversations.status to human_handling.
 

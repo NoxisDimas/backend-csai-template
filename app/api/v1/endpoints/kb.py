@@ -14,7 +14,7 @@ import io
 import pandas as pd
 from pypdf import PdfReader
 
-from app.api.dependencies import get_db
+from app.api.dependencies import get_db, get_current_user
 from app.models.knowledge import KnowledgeBaseDocument, KnowledgeBaseChunk
 from app.services.knowledge_service import KnowledgeService
 
@@ -36,7 +36,8 @@ class DocumentUpdate(BaseModel):
 class DocumentResponse(BaseModel):
     id: uuid.UUID
     title: str
-    embedding_status: str
+    status: str
+    type: str
     created_at: str
     updated_at: Optional[str]
 
@@ -49,11 +50,17 @@ class DocumentDetailResponse(DocumentResponse):
 
 # --- Endpoints ---
 
-@router.post("/kb/documents", status_code=201)
-async def create_document(doc_in: DocumentCreate, db: AsyncSession = Depends(get_db)):
-    """
-    Uploads a new document to the knowledge base.
-    """
+@router.post(
+    "/kb/documents",
+    status_code=201,
+    summary="Create Knowledge Base Document",
+    description="Upload a new text document to the knowledge base for RAG (Retrieval-Augmented Generation)."
+)
+async def create_document(
+    doc_in: DocumentCreate, 
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
     new_doc = KnowledgeBaseDocument(
         title=doc_in.title,
         content=doc_in.content
@@ -65,31 +72,86 @@ async def create_document(doc_in: DocumentCreate, db: AsyncSession = Depends(get
     return {"document_id": str(new_doc.id), "status": new_doc.embedding_status}
 
 
-@router.get("/kb/documents", response_model=List[DocumentResponse])
-async def list_documents(db: AsyncSession = Depends(get_db)):
-    """
-    List all knowledge base documents.
-    """
-    result = await db.execute(select(KnowledgeBaseDocument).order_by(KnowledgeBaseDocument.created_at.desc()))
+from app.schemas.common import PaginatedResponse, ResponseMeta, PaginationMeta
+
+def _get_doc_type(doc: KnowledgeBaseDocument) -> str:
+    if doc.source_id:
+        if doc.source_id.startswith("shopify_page_"):
+            return "Shopify Page"
+        elif doc.source_id.startswith("shopify_policy_"):
+            return "Shopify Policy"
+        return "Shopify Sync"
+    elif doc.title:
+        if doc.title.lower().endswith(".pdf"):
+            return "PDF"
+        elif doc.title.lower().endswith(".csv"):
+            return "CSV"
+        elif doc.title.lower().endswith((".xlsx", ".xls")):
+            return "Excel"
+    return "Text"
+
+@router.get(
+    "/kb/documents",
+    response_model=PaginatedResponse[DocumentResponse],
+    summary="List Documents",
+    description="Fetch a paginated list of all knowledge base documents (PDFs, text, CSVs)."
+)
+async def list_documents(
+    page: int = 1,
+    size: int = 10,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    from sqlalchemy import func
+    total_result = await db.execute(select(func.count()).select_from(KnowledgeBaseDocument))
+    total_items = total_result.scalar_one()
+
+    total_pages = (total_items + size - 1) // size
+    offset = (page - 1) * size
+
+    result = await db.execute(
+        select(KnowledgeBaseDocument)
+        .order_by(KnowledgeBaseDocument.created_at.desc())
+        .offset(offset)
+        .limit(size)
+    )
     docs = result.scalars().all()
     
-    return [
-        DocumentResponse(
-            id=doc.id,
-            title=doc.title,
-            embedding_status=doc.embedding_status,
-            created_at=doc.created_at.isoformat(),
-            updated_at=doc.updated_at.isoformat() if doc.updated_at else None
+    return PaginatedResponse(
+        data=[
+            DocumentResponse(
+                id=doc.id,
+                title=doc.title,
+                status=doc.embedding_status,
+                type=_get_doc_type(doc),
+                created_at=doc.created_at.isoformat(),
+                updated_at=doc.updated_at.isoformat() if doc.updated_at else None
+            )
+            for doc in docs
+        ],
+        meta=ResponseMeta(),
+        pagination=PaginationMeta(
+            total_items=total_items,
+            total_pages=total_pages,
+            current_page=page,
+            per_page=size,
+            has_next=page < total_pages,
+            has_prev=page > 1
         )
-        for doc in docs
-    ]
+    )
 
 
-@router.get("/kb/documents/{document_id}", response_model=DocumentDetailResponse)
-async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """
-    Get details of a specific knowledge base document including content.
-    """
+@router.get(
+    "/kb/documents/{document_id}", 
+    response_model=DocumentDetailResponse,
+    summary="Get Document Detail",
+    description="Retrieve full details of a specific knowledge base document, including its raw text content."
+)
+async def get_document(
+    document_id: uuid.UUID, 
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
     doc = await db.get(KnowledgeBaseDocument, document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -98,22 +160,24 @@ async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db
         id=doc.id,
         title=doc.title,
         content=doc.content,
-        embedding_status=doc.embedding_status,
+        status=doc.embedding_status,
+        type=_get_doc_type(doc),
         created_at=doc.created_at.isoformat(),
         updated_at=doc.updated_at.isoformat() if doc.updated_at else None
     )
 
 
-@router.put("/kb/documents/{document_id}")
+@router.put(
+    "/kb/documents/{document_id}",
+    summary="Update Document Content",
+    description="Update a document's text. If content changes, it resets embedding status to pending and clears existing chunks, requiring reprocessing."
+)
 async def update_document(
     document_id: uuid.UUID, 
     doc_in: DocumentUpdate, 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
-    """
-    Update a document. If content changes, it resets embedding status to pending
-    and clears existing chunks, requiring reprocessing.
-    """
     doc = await db.get(KnowledgeBaseDocument, document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -137,11 +201,17 @@ async def update_document(
     return {"message": "Document updated successfully", "requires_reprocessing": content_changed}
 
 
-@router.post("/kb/documents/upload", status_code=201)
-async def upload_document(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
-    """
-    Uploads a new document file (PDF, CSV, Excel) to the knowledge base.
-    """
+@router.post(
+    "/kb/documents/upload", 
+    status_code=201,
+    summary="Upload Document File",
+    description="Uploads a new document file (PDF, CSV, Excel) to the knowledge base and queues it for background embedding generation."
+)
+async def upload_document(
+    file: UploadFile = File(...), 
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
     content = ""
     filename = file.filename or "uploaded_file"
     file_bytes = await file.read()
@@ -191,11 +261,16 @@ async def upload_document(file: UploadFile = File(...), db: AsyncSession = Depen
         raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
 
 
-@router.delete("/kb/documents/{document_id}")
-async def delete_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """
-    Delete a document and cascade delete its chunks.
-    """
+@router.delete(
+    "/kb/documents/{document_id}",
+    summary="Delete Document",
+    description="Delete a document and cascade delete its vector embeddings chunks."
+)
+async def delete_document(
+    document_id: uuid.UUID, 
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
     doc = await db.get(KnowledgeBaseDocument, document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -206,11 +281,16 @@ async def delete_document(document_id: uuid.UUID, db: AsyncSession = Depends(get
     return {"status": "success", "message": "Document deleted"}
 
 
-@router.post("/kb/sync-shopify-store")
-async def sync_shopify_store(background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
-    """
-    Sync Shopify store information (Pages and Policies) into Knowledge Base.
-    """
+@router.post(
+    "/kb/sync-shopify-store",
+    summary="Sync Shopify Store Pages",
+    description="Sync Shopify store information (Pages and Policies) into the Knowledge Base automatically."
+)
+async def sync_shopify_store(
+    background_tasks: BackgroundTasks, 
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
     from app.services.config_manager import SystemConfigManager
     from app.core.security import decrypt_data
     import hashlib
@@ -247,7 +327,7 @@ async def sync_shopify_store(background_tasks: BackgroundTasks, db: AsyncSession
         content = clean_text(info["content"])
         
         # Calculate fingerprint
-        fingerprint = hashlib.md5(f"{title}|{content}".encode('utf-8')).hexdigest()
+        fingerprint = hashlib.sha256(f"{title}|{content}".encode('utf-8')).hexdigest()
         
         # Check existing
         result = await db.execute(select(KnowledgeBaseDocument).where(KnowledgeBaseDocument.source_id == source_id))
@@ -298,15 +378,18 @@ async def sync_shopify_store(background_tasks: BackgroundTasks, db: AsyncSession
     }
 
 
-@router.post("/kb/documents/{document_id}/process", status_code=202)
+@router.post(
+    "/kb/documents/{document_id}/process", 
+    status_code=202,
+    summary="Reprocess Document Embeddings",
+    description="Manually triggers the text chunking and embedding generation background task for a document."
+)
 async def process_kb_document(
     document_id: uuid.UUID,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
-    """
-    Triggers the text chunking and embedding generation background task.
-    """
     doc = await db.get(KnowledgeBaseDocument, document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
-from app.api.dependencies import get_current_admin, get_db
+from app.api.dependencies import get_current_user, get_db
 from app.models.product import Product
 from app.schemas.common import SuccessResponse, MessageResponse
 from app.services.shopify_controller import ShopifyController
@@ -30,7 +30,7 @@ def compute_static_hash(product_data: Dict[str, Any]) -> str:
     img = product_data.get("image_url", "")
     
     combined = f"{title}|{desc}|{ptype}|{tags}|{vendor}|{img}"
-    return hashlib.md5(combined.encode("utf-8")).hexdigest()
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
 
 @router.post(
@@ -42,8 +42,8 @@ def compute_static_hash(product_data: Dict[str, Any]) -> str:
 async def sync_products(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    # Require admin authentication (uncomment if you want to protect this endpoint)
-    # current_user = Depends(get_current_admin),
+    # Require authentication
+    current_user = Depends(get_current_user),
 ) -> SuccessResponse[MessageResponse]:
     """Manually trigger a full product sync."""
     from app.services.config_manager import SystemConfigManager
@@ -128,6 +128,7 @@ from app.schemas.product_schema import ProductResponse
 )
 async def list_products(
     db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user),
 ) -> SuccessResponse[List[ProductResponse]]:
     """Get all products."""
     result = await db.execute(select(Product).order_by(Product.created_at.desc()))
@@ -136,3 +137,28 @@ async def list_products(
     return SuccessResponse(
         data=[ProductResponse.model_validate(p) for p in products]
     )
+
+@router.delete(
+    "/{product_id:path}",
+    response_model=SuccessResponse[MessageResponse],
+    summary="Delete a Product",
+    description="Delete a product and its embeddings from the database.",
+)
+async def delete_product(
+    product_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user),
+) -> SuccessResponse[MessageResponse]:
+    """Delete a product by ID."""
+    result = await db.execute(select(Product).where(Product.id == product_id))
+    product = result.scalar_one_or_none()
+    
+    if not product:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Product not found")
+        
+    await db.delete(product)
+    await db.commit()
+    
+    logger.info("product_deleted", product_id=product_id)
+    return SuccessResponse(data=MessageResponse(message="Product deleted successfully"))

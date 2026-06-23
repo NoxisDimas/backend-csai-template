@@ -90,10 +90,49 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application instance."""
+    tags_metadata = [
+        {
+            "name": "Authentication",
+            "description": "Operations with user authentication and token generation. The **login** logic is here.",
+        },
+        {
+            "name": "Knowledge Base",
+            "description": "Manage the RAG documents, embeddings, and PDF uploads.",
+        },
+        {
+            "name": "Products",
+            "description": "Sync and manage Shopify product catalogs.",
+        },
+        {
+            "name": "Chat",
+            "description": "AI Chat endpoints for customers to interact with the LLM.",
+        },
+        {
+            "name": "Conversations",
+            "description": "Admin endpoints to view chat histories and metrics.",
+        },
+        {
+            "name": "Tickets",
+            "description": "Manage human escalation tickets.",
+        },
+        {
+            "name": "Analytics",
+            "description": "Fetch dashboard metrics, CSAT scores, and system errors.",
+        },
+    ]
+
     app = FastAPI(
         title="AI Customer Service API",
-        description="AI-powered customer service backend for Shopify stores",
+        description="AI-powered customer service backend for Shopify stores. Integrates LLM RAG with Shopify policies and products.",
         version="0.1.0",
+        contact={
+            "name": "Support Team",
+            "email": "support@example.com",
+        },
+        license_info={
+            "name": "Private/Proprietary",
+        },
+        openapi_tags=tags_metadata,
         lifespan=lifespan,
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,

@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
+from app.models.user import User
 
 
 class Conversation(Base):
@@ -50,6 +51,7 @@ class Conversation(Base):
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False
@@ -74,6 +76,10 @@ class Conversation(Base):
         back_populates="conversation",
         lazy="selectin",
     )
+    assigned_user: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[assigned_user_id]
+    )
 
     def __repr__(self) -> str:
         return f"<Conversation(id={self.id}, status={self.status!r})>"
@@ -94,11 +100,18 @@ class Message(Base):
         UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     sender_type: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
         comment="customer | ai | staff",
+    )
+    sender_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_usage: Mapped[int] = mapped_column(
@@ -113,6 +126,10 @@ class Message(Base):
 
     # Relationships
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+    sender_user: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[sender_id]
+    )
 
     def __repr__(self) -> str:
         return f"<Message(id={self.id}, sender={self.sender_type!r})>"
@@ -133,6 +150,7 @@ class Ticket(Base):
         UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     priority: Mapped[str] = mapped_column(
@@ -148,6 +166,7 @@ class Ticket(Base):
         UUID(as_uuid=True),
         ForeignKey("users.id"),
         nullable=True,
+        index=True,
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

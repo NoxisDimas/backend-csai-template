@@ -102,6 +102,14 @@ def create_search_product_tools(
             output_lines = []
             for p in products:
                 output_lines.append(f"Produk: {p.get('title', 'Unknown Product')}")
+                
+                desc = p.get('description', '')
+                if desc:
+                    desc_clean = desc.replace('\n', ' ').strip()
+                    if len(desc_clean) > 500:
+                        desc_clean = desc_clean[:497] + "..."
+                    output_lines.append(f"Deskripsi: {desc_clean}")
+                
                 output_lines.append(f"URL: {p.get('url', '')}")
                 output_lines.append(f"Image: {p.get('image_url', '')}")
                 
@@ -168,3 +176,59 @@ def create_shopify_shop_info_tools(
             raise ToolException("Sistem sedang mengalami kendala saat mengambil info toko. Mohon beri tahu pelanggan.")
 
     return [get_shop_info]
+
+
+def create_discount_tools(
+    controller: ShopifyController,
+) -> List[BaseTool]:
+    """Create discount check tools bound to the controller."""
+
+    @tool()
+    async def check_discounts() -> str:
+        """
+        Check Active Discounts
+        
+        Retrieves a list of currently active automatic discounts and discount codes from the Shopify store.
+        Use this tool when the customer asks about ongoing promotions, coupons, or discounts.
+        
+        Returns:
+            str: Formatted string containing the active discounts and their summaries.
+        """
+        try:
+            logger.info("Tool check_discounts called")
+            discounts = await controller.get_active_discounts()
+            logger.info(f"DEBUG check_discounts raw result: {discounts}")
+            
+            auto_discounts = discounts.get("automatic_discounts", [])
+            code_discounts = discounts.get("code_discounts", [])
+            
+            if not auto_discounts and not code_discounts:
+                return "Saat ini tidak ada diskon atau promo yang aktif di toko."
+                
+            output_lines = ["Berikut adalah diskon yang sedang aktif di toko:"]
+            
+            if auto_discounts:
+                output_lines.append("\n[ Diskon Otomatis ]")
+                for d in auto_discounts:
+                    output_lines.append(f"- {d.get('title')}: {d.get('summary')}")
+                    
+            if code_discounts:
+                output_lines.append("\n[ Kode Diskon / Kupon ]")
+                for d in code_discounts:
+                    output_lines.append(f"- Kode '{d.get('title')}': {d.get('summary')}")
+                    
+            return "\n".join(output_lines)
+            
+        except pybreaker.CircuitBreakerError:
+            logger.warning("Circuit breaker OPEN for check_discounts.")
+            return "Sistem koneksi ke toko sedang mengalami gangguan sementara. Mohon beritahu pelanggan untuk menunggu beberapa saat lagi."
+        except ValueError as e:
+            if "not configured" in str(e).lower():
+                return "Fitur Shopify belum dikonfigurasi. Beri tahu pelanggan bahwa Anda belum bisa mengakses data promo."
+            raise e
+        except Exception as e:
+            logger.exception("Error retrieving active discounts")
+            await log_and_alert_error(e, "Customer Support Agent", "check_discounts tool", "Retrieving active discounts")
+            raise ToolException("Sistem sedang mengalami kendala saat mengambil info diskon. Mohon beri tahu pelanggan.")
+
+    return [check_discounts]

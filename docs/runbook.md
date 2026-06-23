@@ -42,6 +42,15 @@ Ensure the worker service is running: docker compose ps worker.
 
 Check the worker logs to see if the LLM API Key has expired or if Rate Limiting from OpenAI/Google occurred.
 
+❌ Watchtower Fails to Pull New Image
+
+Symptoms: GitHub Actions CI/CD completed successfully, but the server is still running the old version of the app. Watchtower logs (`docker logs watchtower`) show "unauthorized: authentication required".
+Root Cause: The GitHub Personal Access Token (PAT) used in `~/.docker/config.json` has expired or was revoked.
+Solution: 
+1. Generate a new PAT in GitHub with `read:packages` scope.
+2. Run `docker login ghcr.io -u <username>` on the server.
+3. Restart Watchtower: `docker restart watchtower`.
+
 3. Database Management
 
 Database Recovery (Rollback)
@@ -52,13 +61,13 @@ docker compose exec api-1 alembic downgrade -1
 
 Check Database Connection (Sanity Check)
 
-Run the built-in connection check script:
+Run the built-in connection check script using `uv`:
 
-docker compose exec api-1 python check_db.py
+`docker compose exec api-1 uv run python check_db.py`
 
 Force Wipe Database (For Development Only)
 
-docker compose exec api-1 python wipe_db.py
+`docker compose exec api-1 uv run python wipe_db.py`
 
 4. Contacting the Infrastructure Team
 

@@ -26,8 +26,8 @@ FAQ/Knowledge Base Node: Performs a vector search (semantic search) to the Postg
 
 Shopify Node: Connects with the Shopify GraphQL API to fetch product catalog data, stock availability, sizes, and track orders.
 
-Escalate Node: Triggered when the Router detects the customer using abusive language, repeatedly failing to be understood, or explicitly requesting a human agent. This node breaks the AI flow and triggers the Telegram integration.
-
+Escalate Node: Triggered when the Router detects the customer using abusive language, repeatedly failing to be understood, or explicitly requesting a human agent. This node breaks the AI flow and shifts the conversation status to `human_handling` on the Dashboard. 
+*(Note: Telegram integration is purely used for system error catching/monitoring alerts for the DevOps team, not for handling customer service chats directly).*
 3. Multi-LLM Fallback Logic
 
 The Customer Service system must be available 24/7 and fault-tolerant to network failures or rate-limiting from AI providers. For this, we designed a tiered fallback system:

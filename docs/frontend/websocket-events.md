@@ -42,13 +42,22 @@ Dikirimkan beberapa milidetik setelah pelanggan mengirim pertanyaan, menandakan 
 }
 ```
 
-### B. Balasan Teks AI
-Pesan akhir dari AI. Menandakan bahwa AI sudah selesai meracik jawaban.
+### B. Balasan Teks AI & Rekomendasi Produk
+Pesan akhir dari AI. Menandakan bahwa AI sudah selesai meracik jawaban. Respons ini juga menyertakan struktur data produk untuk mempermudah Frontend merender UI (seperti Product Card) jika AI merekomendasikan barang tertentu.
 ```json
 {
-  "type": "message",
+  "type": "new_message",
   "sender": "ai",
-  "text": "Halo! Sepatu Nike Air ukuran 42 kebetulan masih tersedia 2 stok lagi di gudang utama kami."
+  "messages": "Halo! Sepatu Nike Air ukuran 42 kebetulan masih tersedia 2 stok lagi di gudang utama kami.",
+  "has_product": true,
+  "products": [
+    {
+      "title": "Nike Air",
+      "url": "https://store.com/products/nike-air",
+      "image_url": "https://store.com/cdn/nike-air.jpg",
+      "price": "Rp 1.200.000"
+    }
+  ]
 }
 ```
 

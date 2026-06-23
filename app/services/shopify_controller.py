@@ -213,6 +213,7 @@ class ShopifyController:
             ... on Product {
               id
               title
+              description
               tags
               handle
               onlineStoreUrl
@@ -269,6 +270,7 @@ class ShopifyController:
                 products.append({
                     "id": node.get("id"),
                     "title": node.get("title"),
+                    "description": node.get("description", ""),
                     "tags": node.get("tags", []),
                     "image_url": image_url,
                     "url": store_url,
@@ -440,3 +442,82 @@ class ShopifyController:
             logger.error("shopify_get_store_information_failed", error=str(e))
             await log_and_alert_error(e, "ShopifyController", "get_store_information", "Fetching store info pages")
             raise e
+
+    @shopify_breaker
+    @network_retry(max_retries=3, wait_seconds=2.0)
+    async def get_active_discounts(self) -> Dict[str, List[Dict[str, str]]]:
+        """
+        Fetch active automatic and code discounts from Shopify via GraphQL.
+        """
+        if self.domain is None or self.token is None:
+            logger.error("shopify_get_active_discounts_failed", error="Domain or token not set")
+            raise ValueError("Shopify credentials not configured.")
+            
+        url = f"{self.base_url}/graphql.json"
+        
+        graphql_query = """
+        query($first: Int!) {
+          codeDiscountNodes(first: $first, query: "status:active") {
+            nodes {
+              codeDiscount {
+                ... on DiscountCodeBasic { title summary }
+                ... on DiscountCodeBxgy { title summary }
+                ... on DiscountCodeFreeShipping { title summary }
+              }
+            }
+          }
+          automaticDiscountNodes(first: $first, query: "status:active") {
+            nodes {
+              automaticDiscount {
+                ... on DiscountAutomaticBasic { title summary }
+                ... on DiscountAutomaticBxgy { title summary }
+                ... on DiscountAutomaticFreeShipping { title summary }
+              }
+            }
+          }
+        }
+        """
+        
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            variables = {"first": 15}
+            logger.info(f"DEBUG get_active_discounts sending GraphQL request to {url}")
+            response = await client.post(
+                url, 
+                headers=self.headers, 
+                json={"query": graphql_query, "variables": variables}
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info(f"DEBUG get_active_discounts raw response keys: {list(data.keys())}")
+            
+            if "errors" in data:
+                logger.error("shopify_graphql_error", errors=data["errors"])
+                return {"automatic_discounts": [], "code_discounts": []}
+                
+            code_nodes = data.get("data", {}).get("codeDiscountNodes", {}).get("nodes", [])
+            auto_nodes = data.get("data", {}).get("automaticDiscountNodes", {}).get("nodes", [])
+            
+            result = {
+                "automatic_discounts": [],
+                "code_discounts": []
+            }
+            
+            for node in auto_nodes:
+                discount = node.get("automaticDiscount") or {}
+                if discount.get("title"):
+                    result["automatic_discounts"].append({
+                        "title": discount.get("title"),
+                        "summary": discount.get("summary", "Tidak ada detail tambahan")
+                    })
+                    
+            for node in code_nodes:
+                discount = node.get("codeDiscount") or {}
+                if discount.get("title"):
+                    result["code_discounts"].append({
+                        "title": discount.get("title"),
+                        "summary": discount.get("summary", "Tidak ada detail tambahan")
+                    })
+                    
+            logger.info(f"DEBUG get_active_discounts mapped result: {result}")
+            return result

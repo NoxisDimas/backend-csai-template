@@ -37,6 +37,16 @@ class LLMManager:
                 "api_key": self.settings.OPENROUTER_API_KEY,
                 "model": self.settings.OPENROUTER_CHAT_MODEL,
                 "langchain_name": lambda m: m
+            },
+            "google_genai": {
+                "api_key": self.settings.GOOGLEGENAI_API_KEY,
+                "model": self.settings.GOOGLEGENAI_CHAT_MODEL,
+                "langchain_name": lambda m: f"google_genai:{m}"
+            },
+            "groq": {
+                "api_key": self.settings.GROQ_API_KEY,
+                "model": self.settings.GROQ_CHAT_MODEL,
+                "langchain_name": lambda m: f"groq:{m}"
             }
         }
         
@@ -106,6 +116,19 @@ class LLMManager:
                 model=model_name,
                 callbacks=callbacks,
                 request_timeout=self.settings.LLM_TIMEOUT_SECONDS,
+                max_retries=3,
+                **kwargs
+            )
+        elif provider.lower() == "google_genai":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            api_key = provider_map.get("api_key")
+            if not api_key:
+                raise ValueError(f"API key for provider '{provider}' is not set.")
+            return ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=api_key,
+                callbacks=callbacks,
+                timeout=self.settings.LLM_TIMEOUT_SECONDS,
                 max_retries=3,
                 **kwargs
             )

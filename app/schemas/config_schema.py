@@ -25,11 +25,9 @@ class PersonaSettingResponse(BaseModel):
 class PersonaSettingUpdate(BaseModel):
     """Request schema for PUT /config/persona."""
 
-    persona_name: str = Field(..., min_length=1, max_length=100)
+    persona_name: str = Field(...)
     tone_of_voice: str = Field(
         ...,
-        min_length=1,
-        max_length=100,
         description="e.g., 'Friendly, casual, uses emojis frequently'",
     )
     rules: str | None = Field(
@@ -38,7 +36,6 @@ class PersonaSettingUpdate(BaseModel):
     )
     out_of_context_message: str = Field(
         ...,
-        min_length=1,
         description="Static rejection text for OOC queries",
     )
 

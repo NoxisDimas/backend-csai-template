@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Integer, String, Text, func
+from sqlalchemy import ForeignKey, Integer, String, Text, func, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -68,6 +68,15 @@ class KnowledgeBaseChunk(Base):
     """
 
     __tablename__ = "knowledge_base_chunks"
+    __table_args__ = (
+        Index(
+            "ix_kb_chunk_embedding",
+            "embedding_vector",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding_vector": "vector_cosine_ops"},
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -79,6 +88,7 @@ class KnowledgeBaseChunk(Base):
         UUID(as_uuid=True),
         ForeignKey("knowledge_base_documents.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding_vector = mapped_column(

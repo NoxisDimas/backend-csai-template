@@ -41,13 +41,30 @@ async def chat_websocket(
             if not conv:
                 conv = Conversation(id=conv_uuid, anonymous_customer_id="web_customer")
                 db.add(conv)
-                await db.commit()
+                try:
+                    await db.commit()
+                except Exception as e:
+                    await db.rollback()
+                    if "UniqueViolationError" in str(e) or "conversations_pkey" in str(e):
+                        logger.info("conversation_already_exists_race_condition", conversation_id=conversation_id)
+                    else:
+                        raise e
+
                 
         # Enter the message loop
+        import json
         while True:
             # Receive text from chatbubble
-            data = await websocket.receive_text()
+            raw_data = await websocket.receive_text()
             logger.info("websocket_message_received", conversation_id=conversation_id)
+            
+            # Parse JSON to get plain text
+            try:
+                parsed_data = json.loads(raw_data)
+                # Fallback to raw_data if 'text' isn't in JSON
+                customer_text = parsed_data.get("text", raw_data)
+            except Exception:
+                customer_text = raw_data
             
             # Use a fresh database session for each message to avoid stale connections
             async with async_session_maker() as db:
@@ -58,7 +75,7 @@ async def chat_websocket(
                 new_message = Message(
                     conversation_id=conv_uuid,
                     sender_type="customer",
-                    content=data,
+                    content=customer_text,
                     cost=0.0
                 )
                 db.add(new_message)
@@ -69,7 +86,7 @@ async def chat_websocket(
                     "type": "new_message",
                     "conversation_id": conversation_id,
                     "sender": "customer",
-                    "messages": data,
+                    "messages": customer_text,
                     "has_product": False,
                     "products": []
                 })
@@ -85,12 +102,21 @@ async def chat_websocket(
                 persona_rules = persona["rules"]
                 ooc_fallback_msg = persona["out_of_context_message"]
 
+                # Send typing indicator before AI starts processing
+                typing_payload = {
+                    "type": "typing",
+                    "status": True,
+                    "conversation_id": conversation_id
+                }
+                await manager.send_to_customer(conversation_id, typing_payload)
+                await manager.broadcast_to_dashboard(typing_payload)
+
                 # Enqueue the LangGraph AI loop to the arq Worker Pool
                 from app.core.queue import get_arq_pool
                 try:
                     arq_pool = get_arq_pool()
                     if arq_pool:
-                        await arq_pool.enqueue_job("run_agent_task", conversation_id, data)
+                        await arq_pool.enqueue_job("run_agent_task", conversation_id, customer_text)
                         logger.info("enqueued_agent_task", conversation_id=conversation_id)
                     else:
                         logger.warning("arq_pool_not_available_fallback_to_sync")
@@ -100,9 +126,9 @@ async def chat_websocket(
                             from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
                             async with pool.connection() as conn:
                                 checkpointer = AsyncPostgresSaver(conn)
-                                await run_agentic_loop(conversation_id, data, db, checkpointer=checkpointer)
+                                await run_agentic_loop(conversation_id, customer_text, db, checkpointer=checkpointer)
                         else:
-                            await run_agentic_loop(conversation_id, data, db, checkpointer=None)
+                            await run_agentic_loop(conversation_id, customer_text, db, checkpointer=None)
                 except Exception as e:
                     logger.error("enqueue_task_failed", error=str(e))
                     await manager.send_to_customer(conversation_id, {"messages": "Terjadi kesalahan internal (Redis Timeout). Sistem sedang memulihkan diri, silakan coba beberapa saat lagi."})

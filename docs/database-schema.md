@@ -61,6 +61,9 @@ total_token INT DEFAULT 0,
 total_cost NUMERIC(10, 4) DEFAULT 0.0000
 );
 
+-- B-Tree Index for optimizing foreign key lookups
+CREATE INDEX ix_conversations_assigned_user_id ON conversations (assigned_user_id);
+
 -- Chat history (Can be synchronized from LangGraph state or written manually)
 CREATE TABLE messages (
 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -71,6 +74,9 @@ token_usage INT DEFAULT 0, -- Input+output tokens if sender_type = 'ai'
 cost NUMERIC(10, 4) DEFAULT 0.0000, -- Actual cost recorded from OpenRouter
 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- B-Tree Index for optimizing conversation history queries
+CREATE INDEX ix_messages_conversation_id ON messages (conversation_id);
 
 -- Escalation queue tickets
 CREATE TABLE tickets (
@@ -84,6 +90,10 @@ notes TEXT,
 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 resolved_at TIMESTAMP WITH TIME ZONE
 );
+
+-- B-Tree Index for optimizing ticket queries
+CREATE INDEX ix_tickets_conversation_id ON tickets (conversation_id);
+CREATE INDEX ix_tickets_assigned_user_id ON tickets (assigned_user_id);
 
 4. Analytics & Metrics Dashboard
 
@@ -135,7 +145,10 @@ chunk_index INT NOT NULL
 );
 
 -- Create an HNSW index to speed up Cosine Similarity search
-CREATE INDEX ON knowledge_base_chunks USING hnsw (embedding_vector vector_cosine_ops);
+CREATE INDEX ON knowledge_base_chunks USING hnsw (embedding_vector vector_cosine_ops) WITH (m=16, ef_construction=64);
+
+-- B-Tree Index for foreign key lookups
+CREATE INDEX ix_knowledge_base_chunks_document_id ON knowledge_base_chunks (document_id);
 
 6. Observability & Logs
 

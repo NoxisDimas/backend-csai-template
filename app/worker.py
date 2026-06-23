@@ -51,6 +51,7 @@ class WorkerSettings:
     functions = [run_agent_task, process_document_task, send_telegram_alert_task]
     max_jobs = 20
     max_tries = 3
+    job_timeout = 300  # 5 minutes timeout for long-running LLM tasks
     
     async def on_startup(ctx):
         # We need to initialize redis for the websocket manager broadcast to work!

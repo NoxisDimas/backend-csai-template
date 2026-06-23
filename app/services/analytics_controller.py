@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, extract
 
 from app.models.analytics import Feedback
-from app.models.conversation import Message, Conversation
+from app.models.conversation import Message, Conversation, Ticket
 
 class AnalyticsController:
     """Handles complex metric aggregations and dashboard statistics."""
@@ -25,7 +25,7 @@ class AnalyticsController:
             week_ago = today - timedelta(days=7)
             month_ago = today - timedelta(days=30)
             
-            # 1. Total tokens (Daily, Weekly, Monthly)
+            # 1. Total tokens (Monthly)
             daily_tokens = await self._get_token_sum(today)
             weekly_tokens = await self._get_token_sum(week_ago)
             monthly_tokens = await self._get_token_sum(month_ago)
@@ -34,6 +34,14 @@ class AnalyticsController:
             query_cost = select(func.sum(Conversation.total_cost)).where(func.date(Conversation.created_at) >= month_ago)
             cost_result = await self.db.scalar(query_cost)
             cost_usd = float(cost_result or 0.0)
+            
+            # Count conversations
+            query_conv = select(func.count(Conversation.id))
+            total_convs = await self.db.scalar(query_conv)
+            
+            # Count tickets
+            query_tickets = select(func.count(Ticket.id))
+            total_tickets = await self.db.scalar(query_tickets)
             
             # 3. Chat History Summary (Recent 10)
             recent_chats = await self._get_recent_chats(10)
@@ -44,16 +52,17 @@ class AnalyticsController:
             # 5. Peak Hours Heatmap
             peak_hours = await self._get_peak_hours()
             
+            # Format peak_hours as array of objects for Recharts
+            formatted_peak_hours = [{"time": k, "count": v} for k, v in peak_hours.items()]
+            
             return {
-                "tokens": {
-                    "daily": daily_tokens,
-                    "weekly": weekly_tokens,
-                    "monthly": monthly_tokens
-                },
-                "cost_usd": round(cost_usd, 4),
+                "total_tokens": monthly_tokens,
+                "total_conversations": int(total_convs or 0),
+                "total_tickets": int(total_tickets or 0),
+                "estimated_cost_usd": round(cost_usd, 4),
                 "chat_history": recent_chats,
                 "csat_average": csat_avg,
-                "peak_hours": peak_hours
+                "peak_hours": formatted_peak_hours
             }
         except Exception as e:
             from app.services.telegram_service import log_and_alert_error_sync
@@ -62,11 +71,13 @@ class AnalyticsController:
             logger.error("get_dashboard_metrics_failed", error=str(e))
             log_and_alert_error_sync(e, "Customer Support Agent", "AnalyticsController.get_dashboard_metrics", "Compiling dashboard metrics")
             return {
-                "tokens": {"daily": 0, "weekly": 0, "monthly": 0},
-                "cost_usd": 0.0,
+                "total_tokens": 0,
+                "total_conversations": 0,
+                "total_tickets": 0,
+                "estimated_cost_usd": 0.0,
                 "chat_history": [],
                 "csat_average": 0.0,
-                "peak_hours": {}
+                "peak_hours": []
             }
 
     async def _get_token_sum(self, start_date: date) -> int:

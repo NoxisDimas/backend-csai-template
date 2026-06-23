@@ -7,11 +7,21 @@ from typing import Dict, Any, Optional
 
 logger = structlog.get_logger(__name__)
 
+from dataclasses import dataclass
+
+@dataclass
+class SystemConfigDTO:
+    id: int
+    shopify_domain: str
+    admin_api_token: str
+    webhook_secret: str
+    operational_hours_json: Optional[Dict[str, Any]]
+
 class SystemConfigManager:
-    _cached_config: Optional[SystemConfig] = None
+    _cached_config: Optional[SystemConfigDTO] = None
 
     @classmethod
-    async def get_config(cls, db: AsyncSession) -> Optional[SystemConfig]:
+    async def get_config(cls, db: AsyncSession) -> Optional[SystemConfigDTO]:
         """
         Retrieves the system config. Uses cache if available to prevent DB queries on every message.
         """
@@ -26,7 +36,13 @@ class SystemConfigManager:
             config = result.scalar_one_or_none()
 
             if config:
-                cls._cached_config = config
+                cls._cached_config = SystemConfigDTO(
+                    id=config.id,
+                    shopify_domain=config.shopify_domain,
+                    admin_api_token=config.admin_api_token,
+                    webhook_secret=config.webhook_secret,
+                    operational_hours_json=config.operational_hours_json
+                )
             else:
                 cls._cached_config = None
 
