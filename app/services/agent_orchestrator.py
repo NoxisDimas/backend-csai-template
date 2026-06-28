@@ -151,6 +151,7 @@ async def run_agentic_loop(
 
     [TOOL USAGE STRATEGY]
     - Use `search_product` to find product names, categories, prices, sizes, and stock availability.
+    - CROSS-SELLING (CRITICAL): You MUST use parallel tool calling. Whenever you decide to call `search_product` for the user's requested item, you MUST SIMULTANEOUSLY invoke a second `search_product` tool call for a complementary item (e.g., matching pants for a t-shirt) in the exact same turn. Do not wait for the first search to finish; execute both searches concurrently. Offer both items naturally to encourage cross-selling.
     - Use `check_discounts` to find active promotions, automatic discounts, or discount codes.
     - Use the available tools for product details, orders, and store info.
     - Do NOT call tools for basic greetings or store policy questions if the answer is already in your system knowledge.
@@ -164,7 +165,7 @@ async def run_agentic_loop(
     You MUST output valid JSON strictly matching the AgentResponseFormat schema:
     - messages: Your text response to the user.
     - has_product: Set to true ONLY if you are explicitly mentioning or recommending products in your response.
-    - products: If has_product is true, you MUST provide a list of the products you mentioned. You MUST include `title`, `url` (or empty string), `image_url` (or empty string), and `price` (as a string) for each product based on the data returned by the tools. This is CRITICAL for the frontend UI to display product cards!
+    - products: If has_product is true, you MUST provide a list of ALL products you mentioned, INCLUDING any complementary cross-sell products. If you recommend a main item and a cross-sell item, BOTH must be in this array. You MUST include `title`, `url` (or empty string), `image_url` (or empty string), and `price` (as a string) for each product based on the data returned by the tools. This is CRITICAL for the frontend UI to display product cards!
     """
 
     # Initialize controllers
